@@ -12,5 +12,24 @@ CREATE TABLE team (
 )
 
 CREATE TABLE user_teams (
+    user_id INTEGER NOT NULL REFERENCES user(id) ON DELETE CASCADE,
+    team_id INTEGER NOT NULL REFERENCES team(id) ON DELETE CASCADE, 
+    PRIMARY KEY (user_id, team_id)
+)
+
+CREATE TABLE pull_request (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    authot_id INTEGER NOT NULL REFERENCES user(id) ON DELETE RESTRICT,
+
+    status VARCHAR(10) NOT NULL DEFAULT 'OPEN',
+    CHECK (status IN ('OPEN', 'MERGED')),
+
+    reviewer1_id INTEGER REFERENCES user(id) ON DELETE SET NULL,
+    reviewer2_id INTEGER REFERENCES user(id) ON DELETE SET NULL,
+
+    created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     
+    CHECK (authot_id != reviewer1_id)
+    CHECK (authot_id != reviewer2_id)
 )
