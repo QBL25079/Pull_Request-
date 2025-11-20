@@ -4,31 +4,49 @@ import (
 	"time"
 )
 
+type TeamMember struct {
+	TeamName  string       `json:"team_name" db:"team_name"`
+	Members   []TeamMember `json:"members"`
+	CreatedAt time.Time    `json:"createdAt" db:"created_at"`
+}
+
 type User struct {
-	ID        int       `json:"id" db:"id"`
-	Name      string    `json:"name" db:"name"`
-	IsActive  bool      `json:"IsActive" db:"is_active"`
+	UserID    string    `json:"user_id" db:"user_id"`
+	Username  string    `json:"username" db:"username"`
+	TeamName  string    `json:"team_name" db:"team_name"`
+	IsActive  bool      `json:"is_active" db:"is_active"`
 	CreatedAt time.Time `json:"createdAt" db:"created_at"`
 }
 
 type Team struct {
-	ID        int       `json:"id" db:"id"`
-	Name      string    `json:"name" db:"name"`
-	CreatedAt time.Time `json:"createdAt" db:"created_at"`
+	TeamName  string       `json:"team_name" db:"team_name"`
+	Members   []TeamMember `json:"members"`
+	CreatedAt time.Time    `json:"createdAt" db:"created_at"`
 }
 
 type PullRequest struct {
-	Id       int    `json:"id" db:"id"`
-	Title    string `json:"title" db:"title"`
-	AuthorID int    `json:"authorId" db:"author_id"`
-	Status   string `json:"status" db:"status"`
+	PullRequestID   string `json:"pull_request_id" db:"pull_request_id"`
+	PullRequestName string `json:"pull_request_name" db:"pull_request_name"`
+	AuthorID        string `json:"author_id" db:"author_id"`
 
-	Reviewer1ID *int      `json:"reviewer1ID" db:"reviewr1_id"`
-	Reviewer2ID *int      `json:"reviewer2ID" db:"reviewr2_id"`
-	CreatedAt   time.Time `json:"createdAt" db:"created_at"`
+	Status            string   `json:"status" db:"status"`
+	AssignedReviewers []string `json:"assigned_reviewers"`
+
+	Reviewer1ID *string `json:"-" db:"reviewer1_id"`
+	Reviewer2ID *string `json:"-" db:"reviewer2_id"`
+
+	CreatedAt *time.Time `json:"createdAt" db:"created_at"`
+	MergedAt  *time.Time `json:"mergedAt" db:"merged_at"`
 }
 
 type UserTeam struct {
 	UserID int `db:"user_id"`
 	TeamID int `db:"team_id"`
+}
+
+type PullRequestShort struct {
+	PullRequestID   string `json:"pull_request_id" db:"pull_request_id"`
+	PullRequestName string `json:"pull_request_name" db:"pull_request_name"`
+	AuthorID        string `json:"author_id" db:"author_id"`
+	Status          string `json:"status" db:"status"`
 }
