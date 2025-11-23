@@ -34,24 +34,24 @@ func (h *UserHandler) CreateUser(c echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "team_name is required"})
 	}
 
-	isActive := true
-	if req.IsActive != nil {
-		isActive = *req.IsActive
-	}
-
 	user := domain.User{
 		Username: req.Username,
 		TeamName: req.TeamName,
-		IsActive: isActive,
+		IsActive: true,
 	}
 
-	if err := h.userService.CreateUser(c.Request().Context(), user); err != nil {
+	if req.IsActive != nil {
+		user.IsActive = *req.IsActive
+	}
+
+	createdUser, err := h.userService.CreateUser(c.Request().Context(), user)
+	if err != nil {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
-	return c.JSON(http.StatusCreated, map[string]any{
+	return c.JSON(http.StatusCreated, map[string]interface{}{
 		"message": "user created",
-		"user_id": user.UserID,
+		"user_id": createdUser.UserID,
 	})
 }
 
@@ -73,9 +73,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
 	}
-	if err := c.Validate(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": err.Error()})
-	}
+
 	req.UserID = userID
 
 	if err := h.userService.UpdateUser(c.Request().Context(), req); err != nil {
@@ -84,6 +82,7 @@ func (h *UserHandler) UpdateUser(c echo.Context) error {
 		}
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
+
 	return c.JSON(http.StatusOK, map[string]string{"message": "user updated"})
 }
 

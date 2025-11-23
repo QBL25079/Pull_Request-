@@ -14,9 +14,13 @@ func NewUserService(repo repository.Repository) *UserService {
 	return &UserService{repo: repo}
 }
 
-func (s *UserService) CreateUser(ctx context.Context, user domain.User) error {
+func (s *UserService) CreateUser(ctx context.Context, user domain.User) (*domain.User, error) {
 	user.GenerateID()
-	return s.repo.CreateUser(ctx, user)
+	err := s.repo.CreateUser(ctx, user)
+	if err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 func (s *UserService) GetUser(ctx context.Context, userID string) (*domain.User, error) {

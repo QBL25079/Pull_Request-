@@ -186,7 +186,7 @@ func (r *repository) CreatePullRequest(ctx context.Context, pr domain.PullReques
 	return nil
 }
 func (r *repository) CreateTeam(ctx context.Context, team domain.Team) error {
-	_, err := r.db.ExecContext(ctx, `INSERT INTO teams (name) VALUES ($1)`, team.TeamName)
+	_, err := r.db.ExecContext(ctx, `INSERT INTO team (team_name) VALUES ($1)`, team.TeamName)
 	if err != nil {
 		return fmt.Errorf("failed to create team: %w", err)
 	}
@@ -194,7 +194,7 @@ func (r *repository) CreateTeam(ctx context.Context, team domain.Team) error {
 }
 
 func (r *repository) ListTeams(ctx context.Context) ([]domain.Team, error) {
-	rows, err := r.db.QueryContext(ctx, `SELECT name FROM teams`)
+	rows, err := r.db.QueryContext(ctx, `SELECT team_name FROM team`)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list teams: %w", err)
 	}
