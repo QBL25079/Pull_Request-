@@ -18,7 +18,7 @@ import (
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
-		log.Fatalf("Не удалось загрузить конфиг: %v", err)
+		log.Fatalf("Error in load config: %v", err)
 	}
 
 	db, err := sql.Open("postgres", cfg.GetDSN())
@@ -28,18 +28,18 @@ func main() {
 	defer db.Close()
 
 	if err = db.Ping(); err != nil {
-		log.Fatal("Не удалось подключиться к БД:", err)
+		log.Fatal("Error to connect database:", err)
 	}
 	log.Println("Successfully connected to PostgreSQL!")
 
 	migrationPath := filepath.Join("migrations", "0001_initial_schema.sql")
 	if data, err := ioutil.ReadFile(migrationPath); err != nil {
-		log.Printf("Warning: не найден файл миграции: %v", err)
+		log.Printf("Warning: migrations nnot found: %v", err)
 	} else {
 		if _, err := db.Exec(string(data)); err != nil {
-			log.Printf("Warning: ошибка при применении миграции: %v", err)
+			log.Printf("Warning: error in accept migration: %v", err)
 		} else {
-			log.Println("Миграции успешно применены")
+			log.Println("Migrations done successfully")
 		}
 	}
 
@@ -65,6 +65,6 @@ func main() {
 
 	v1.POST("/pull-requests", prHandler.CreatePR)
 
-	log.Printf("Сервер запущен на :%s", cfg.HTTPPort)
+	log.Printf("Server strted: %s", cfg.HTTPPort)
 	log.Fatal(e.Start(":" + cfg.HTTPPort))
 }
