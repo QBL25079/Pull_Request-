@@ -9,23 +9,20 @@ import (
 )
 
 type PRService struct {
-	repo repository.UserRepository
+	repo repository.Repository
 }
 
-func NewPRService(repo repository.UserRepository) *PRService {
+func NewPRService(repo repository.Repository) *PRService {
 	return &PRService{repo: repo}
 }
 
 func (s *PRService) CreatePullRequest(ctx context.Context, pr domain.PullRequest) error {
-	// Генерация ID
 	pr.GenerateID()
 
-	// Установка статуса и времени
 	pr.Status = domain.PRStatusOpen
 	now := time.Now()
 	pr.CreatedAt = &now
 
-	// Заполнение AssignedReviewers
 	pr.AssignedReviewers = []string{}
 	if pr.Reviewer1ID != nil && *pr.Reviewer1ID != "" {
 		pr.AssignedReviewers = append(pr.AssignedReviewers, *pr.Reviewer1ID)

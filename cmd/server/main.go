@@ -2,7 +2,9 @@ package main
 
 import (
 	"database/sql"
+	"io/ioutil"
 	"log"
+	"path/filepath"
 	"pr-reviewer-service/internal/config"
 	"pr-reviewer-service/internal/handler"
 	"pr-reviewer-service/internal/repository"
@@ -30,9 +32,23 @@ func main() {
 	}
 	log.Println("Successfully connected to PostgreSQL!")
 
-	repo := repository.NewUserRepository(db)
+	migrationPath := filepath.Join("migrations", "0001_initial_schema.sql")
+	if data, err := ioutil.ReadFile(migrationPath); err != nil {
+		log.Printf("Warning: не найден файл миграции: %v", err)
+	} else {
+		if _, err := db.Exec(string(data)); err != nil {
+			log.Printf("Warning: ошибка при применении миграции: %v", err)
+		} else {
+			log.Println("Миграции успешно применены")
+		}
+	}
+
+	repo := repository.NewRepository(db)
 	userService := service.NewUserService(repo)
-	h := handler.NewUserHandler(userService)
+	prService := service.NewPRService(repo)
+
+	userHandler := handler.NewUserHandler(userService)
+	prHandler := handler.NewPRHandler(prService)
 
 	e := echo.New()
 	e.Use(middleware.Logger())
@@ -40,18 +56,14 @@ func main() {
 	e.Use(middleware.CORS())
 
 	v1 := e.Group("/api/v1")
-	v1.POST("/users", h.CreateUser)
-	v1.POST("/users", h.CreateUser)
-	v1.GET("/users/:id", h.GetUser)
-	v1.PUT("/users/:id", h.UpdateUser)
-	v1.DELETE("/users/:id", h.DeleteUser)
-	v1.GET("/users", h.ListUsers)
 
-	//v1.POST("/teams", h.CreateTeam)
-	//v1.PUT("/teams/:teamName", h.UpdateTeamName)
-	//v1.GET("/users/:userID", h.GetUserByID)
-	//v1.POST("/pull-requests", h.CreatePullRequest)
-	//v1.GET("/pull-requests/:prID", h.GetPullRequestByID)
+	v1.POST("/users", userHandler.CreateUser)
+	v1.GET("/users/:id", userHandler.GetUser)
+	v1.PUT("/users/:id", userHandler.UpdateUser)
+	v1.DELETE("/users/:id", userHandler.DeleteUser)
+	v1.GET("/users", userHandler.ListUsers)
+
+	v1.POST("/pull-requests", prHandler.CreatePR)
 
 	log.Printf("Сервер запущен на :%s", cfg.HTTPPort)
 	log.Fatal(e.Start(":" + cfg.HTTPPort))

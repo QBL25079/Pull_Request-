@@ -15,12 +15,8 @@ const (
 	PRStatusClosed   PRStatus = "CLOSED"
 )
 
-type TeamMember struct {
-	TeamName  string       `json:"team_name" db:"team_name"`
-	Members   []TeamMember `json:"members"`
-	CreatedAt time.Time    `json:"createdAt" db:"created_at"`
-}
 type PRStatus string
+
 type User struct {
 	UserID    string    `json:"user_id" db:"user_id"`
 	Username  string    `json:"username" db:"username"`
@@ -34,9 +30,9 @@ func (u *User) GenerateID() {
 }
 
 type Team struct {
-	TeamName  string       `json:"team_name" db:"team_name"`
-	Members   []TeamMember `json:"members"`
-	CreatedAt time.Time    `json:"createdAt" db:"created_at"`
+	TeamName  string    `json:"team_name" db:"team_name"`
+	Members   []User    `json:"members"`
+	CreatedAt time.Time `json:"createdAt" db:"created_at"`
 }
 
 type PullRequest struct {
@@ -56,11 +52,6 @@ type PullRequest struct {
 
 func (pr *PullRequest) GenerateID() {
 	pr.PullRequestID = uuid.NewString()
-}
-
-type UserTeam struct {
-	UserID int `db:"user_id"`
-	TeamID int `db:"team_id"`
 }
 
 type PullRequestShort struct {

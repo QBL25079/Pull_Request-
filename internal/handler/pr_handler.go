@@ -18,14 +18,21 @@ func NewPRHandler(prService *service.PRService) *PRHandler {
 
 func (h *PRHandler) CreatePR(c echo.Context) error {
 	var req struct {
-		PullRequestName string  `json:"pull_request_name" validate:"required"`
-		AuthorID        string  `json:"author_id" validate:"required"`
+		PullRequestName string  `json:"pull_request_name"`
+		AuthorID        string  `json:"author_id"`
 		Reviewer1ID     *string `json:"reviewer1_id,omitempty"`
 		Reviewer2ID     *string `json:"reviewer2_id,omitempty"`
 	}
 
 	if err := c.Bind(&req); err != nil {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+	}
+
+	if req.PullRequestName == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "pull_request_name is required"})
+	}
+	if req.AuthorID == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "author_id is required"})
 	}
 
 	pr := domain.PullRequest{

@@ -1,4 +1,3 @@
-// internal/service/user_service.go
 package service
 
 import (
@@ -8,30 +7,30 @@ import (
 )
 
 type UserService struct {
-	userRepo repository.UserRepository
+	repo repository.Repository
 }
 
-func NewUserService(userRepo repository.UserRepository) *UserService {
-	return &UserService{userRepo: userRepo}
+func NewUserService(repo repository.Repository) *UserService {
+	return &UserService{repo: repo}
 }
 
 func (s *UserService) CreateUser(ctx context.Context, user domain.User) error {
 	user.GenerateID()
-	return s.userRepo.CreateUser(ctx, user)
+	return s.repo.CreateUser(ctx, user)
 }
 
 func (s *UserService) GetUser(ctx context.Context, userID string) (*domain.User, error) {
-	return s.userRepo.GetUserByID(ctx, userID)
+	return s.repo.GetUserByID(ctx, userID)
 }
 
 func (s *UserService) UpdateUser(ctx context.Context, user domain.User) error {
-	return s.userRepo.UpdateUser(ctx, user)
+	return s.repo.UpdateUser(ctx, user)
 }
 
 func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
-	return s.userRepo.DeleteUser(ctx, userID)
+	return s.repo.DeleteUser(ctx, userID)
 }
 
 func (s *UserService) ListUsers(ctx context.Context, teamName string) ([]domain.User, error) {
-	return s.userRepo.ListUsers(ctx, teamName)
+	return s.repo.ListUsers(ctx, teamName)
 }

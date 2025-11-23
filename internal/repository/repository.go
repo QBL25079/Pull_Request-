@@ -1,4 +1,3 @@
-// internal/repository/user_repository.go
 package repository
 
 import (
@@ -9,7 +8,7 @@ import (
 	"pr-reviewer-service/internal/domain"
 )
 
-type UserRepository interface {
+type Repository interface {
 	CreateUser(ctx context.Context, user domain.User) error
 	GetUserByID(ctx context.Context, userID string) (*domain.User, error)
 	UpdateUser(ctx context.Context, user domain.User) error
@@ -19,15 +18,15 @@ type UserRepository interface {
 	CreatePullRequest(ctx context.Context, pr domain.PullRequest) error
 }
 
-type userRepository struct {
+type repository struct {
 	db *sql.DB
 }
 
-func NewUserRepository(db *sql.DB) UserRepository {
-	return &userRepository{db: db}
+func NewRepository(db *sql.DB) Repository {
+	return &repository{db: db}
 }
 
-func (r *userRepository) CreateUser(ctx context.Context, user domain.User) error {
+func (r *repository) CreateUser(ctx context.Context, user domain.User) error {
 	query := `
 		INSERT INTO users (user_id, username, team_name, is_active, created_at)
 		VALUES ($1, $2, $3, $4, NOW())
@@ -39,7 +38,7 @@ func (r *userRepository) CreateUser(ctx context.Context, user domain.User) error
 	return nil
 }
 
-func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
+func (r *repository) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
 	var u domain.User
 	query := `SELECT user_id, username, team_name, is_active, created_at FROM users WHERE user_id = $1`
 	err := r.db.QueryRowContext(ctx, query, userID).Scan(
@@ -54,7 +53,7 @@ func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*domai
 	return &u, nil
 }
 
-func (r *userRepository) UpdateUser(ctx context.Context, user domain.User) error {
+func (r *repository) UpdateUser(ctx context.Context, user domain.User) error {
 	query := `
 		UPDATE users SET username = $1, team_name = $2, is_active = $3
 		WHERE user_id = $4
@@ -65,12 +64,12 @@ func (r *userRepository) UpdateUser(ctx context.Context, user domain.User) error
 	}
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
-		return sql.ErrNoRows
+		return errors.New("no rows affected")
 	}
 	return nil
 }
 
-func (r *userRepository) DeleteUser(ctx context.Context, userID string) error {
+func (r *repository) DeleteUser(ctx context.Context, userID string) error {
 	query := `DELETE FROM users WHERE user_id = $1`
 	result, err := r.db.ExecContext(ctx, query, userID)
 	if err != nil {
@@ -78,16 +77,16 @@ func (r *userRepository) DeleteUser(ctx context.Context, userID string) error {
 	}
 	affected, _ := result.RowsAffected()
 	if affected == 0 {
-		return sql.ErrNoRows
+		return errors.New("no rows affected")
 	}
 	return nil
 }
 
-func (r *userRepository) ListUsers(ctx context.Context, teamName string) ([]domain.User, error) {
+func (r *repository) ListUsers(ctx context.Context, teamName string) ([]domain.User, error) {
 	query := `SELECT user_id, username, team_name, is_active, created_at FROM users`
-	args := []interface{}{}
+	var args []interface{}
 	if teamName != "" {
-		query += " WHERE team_name = $1"
+		query += ` WHERE team_name = $1`
 		args = append(args, teamName)
 	}
 
@@ -105,10 +104,13 @@ func (r *userRepository) ListUsers(ctx context.Context, teamName string) ([]doma
 		}
 		users = append(users, u)
 	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
 	return users, nil
 }
 
-func (r *userRepository) GetPullRequestByID(ctx context.Context, prID string) (*domain.PullRequest, error) {
+func (r *repository) GetPullRequestByID(ctx context.Context, prID string) (*domain.PullRequest, error) {
 	var pr domain.PullRequest
 	var reviewer1ID, reviewer2ID sql.NullString
 	var mergedAt sql.NullTime
@@ -133,12 +135,11 @@ func (r *userRepository) GetPullRequestByID(ctx context.Context, prID string) (*
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil // не найден
+			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get pull request: %w", err)
 	}
 
-	// Заполняем AssignedReviewers для удобства
 	pr.AssignedReviewers = []string{}
 	if reviewer1ID.Valid {
 		pr.Reviewer1ID = &reviewer1ID.String
@@ -154,7 +155,7 @@ func (r *userRepository) GetPullRequestByID(ctx context.Context, prID string) (*
 
 	return &pr, nil
 }
-func (r *userRepository) CreatePullRequest(ctx context.Context, pr domain.PullRequest) error {
+func (r *repository) CreatePullRequest(ctx context.Context, pr domain.PullRequest) error {
 	var reviewer1ID, reviewer2ID sql.NullString
 	if pr.Reviewer1ID != nil && *pr.Reviewer1ID != "" {
 		reviewer1ID.Valid = true
