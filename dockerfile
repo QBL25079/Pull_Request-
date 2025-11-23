@@ -1,7 +1,7 @@
+FROM golang:1.24-alpine AS builder
 
-FROM golang:1.21-alpine AS builder
+RUN apk add --no-cache git
 
-RUN apk add --no-cache git bash postgresql-client
 WORKDIR /app
 
 COPY go.mod go.sum ./
@@ -9,17 +9,23 @@ RUN go mod download
 
 COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o /pr_reviewer_app ./cmd/server/main.go
+RUN CGO_ENABLED=0 go build -o /app/pr-reviewer-service ./cmd/server
 
 FROM alpine:latest
 
-RUN apk add --no-cache postgresql-client bash
+RUN apk --no-cache add ca-certificates tzdata
 
-WORKDIR /app
+COPY --from=builder /app/pr-reviewer-service /usr/local/bin/
 
-COPY --from=builder /pr_reviewer_app /pr_reviewer_app
-COPY --from=builder /app/wait-for-it.sh /wait-for-it.sh
+COPY wait_for_db.sh /usr/local/bin/
 
-COPY migrations migrations
+COPY migrations /app/migrations
 
-RUN chmod +x /wait-for-it.sh /pr_reviewer_app
+ENV DB_SOURCE postgres://${DB_USER}:${DB_PASSWORD}@${DB_HOST}:${DB_PORT}/${DB_NAME}?sslmode=disable
+
+RUN apk add --no-cache curl && \
+    curl -L https://github.com/golang-migrate/migrate/releases/download/v4.17.0/migrate.linux-amd64.tar.gz | tar xvz && \
+    mv migrate /usr/local/bin/migrate
+
+ENTRYPOINT ["/bin/sh", "-c"]
+CMD ["/usr/local/bin/wait_for_db.sh && migrate -path /app/migrations -database $DB_SOURCE up && pr-reviewer-service"]
