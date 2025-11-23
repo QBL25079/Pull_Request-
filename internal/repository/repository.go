@@ -1,3 +1,4 @@
+// internal/repository/user_repository.go
 package repository
 
 import (
@@ -6,153 +7,177 @@ import (
 	"errors"
 	"fmt"
 	"pr-reviewer-service/internal/domain"
-	"time"
-
-	"github.com/lib/pq"
 )
 
-type Repository interface {
-	CreateTeam(ctx context.Context, teamName string) error
-	UpdateTeamName(ctx context.Context, oldName, newName string) error
+type UserRepository interface {
 	CreateUser(ctx context.Context, user domain.User) error
 	GetUserByID(ctx context.Context, userID string) (*domain.User, error)
-	CreatePullRequest(ctx context.Context, pr domain.PullRequest) error
+	UpdateUser(ctx context.Context, user domain.User) error
+	DeleteUser(ctx context.Context, userID string) error
+	ListUsers(ctx context.Context, teamName string) ([]domain.User, error)
 	GetPullRequestByID(ctx context.Context, prID string) (*domain.PullRequest, error)
+	CreatePullRequest(ctx context.Context, pr domain.PullRequest) error
 }
 
-type postgresRepository struct {
-	DB *sql.DB
+type userRepository struct {
+	db *sql.DB
 }
 
-func NewPostgresRepository(db *sql.DB) *postgresRepository {
-	return &postgresRepository{DB: db}
+func NewUserRepository(db *sql.DB) UserRepository {
+	return &userRepository{db: db}
 }
 
-func (r *postgresRepository) CreateTeam(ctx context.Context, teamName string) error {
-	query := `INSERT  INTO team  (team_name) VALUES ($1)`
-
-	_, err := r.DB.ExecContext(ctx, query, teamName)
-
-	if err != nil {
-		return fmt.Errorf("repository: failed to create team %s: %w", teamName, err)
-	}
-
-	return nil
-}
-
-func (r *postgresRepository) UpdateTeamName(ctx context.Context, oldName, newName string) error {
-	query := `UPDATE team SET team_name = $2 WHERE team_name = $1`
-
-	result, err := r.DB.ExecContext(ctx, query, oldName, newName)
-
-	if err != nil {
-		return fmt.Errorf("repository: error to update team name from %s to %s: %w", oldName, newName, err)
-	}
-	rAffected, _ := result.RowsAffected()
-	if rAffected == 0 {
-		return sql.ErrNoRows
-	}
-	return nil
-}
-
-func (r *postgresRepository) CreateUser(ctx context.Context, user domain.User) error {
+func (r *userRepository) CreateUser(ctx context.Context, user domain.User) error {
 	query := `
 		INSERT INTO users (user_id, username, team_name, is_active, created_at)
 		VALUES ($1, $2, $3, $4, NOW())
 	`
-
-	_, err := r.DB.ExecContext(ctx, query,
-		user.UserID,
-		user.Username,
-		user.TeamName,
-		user.IsActive,
-	)
+	_, err := r.db.ExecContext(ctx, query, user.UserID, user.Username, user.TeamName, user.IsActive)
 	if err != nil {
-		return fmt.Errorf("repository: failed to create user %s: %w", user.UserID, err)
+		return fmt.Errorf("failed to create user: %w", err)
 	}
 	return nil
 }
 
-func (r *postgresRepository) CreatePullRequest(ctx context.Context, pr domain.PullRequest) error {
-
-	query := `INSERT INTO pull_request (pull_request_id, pull_request_name, author_id, status, reviewer1_id, reviewer2_id) VALUES ($1, $2, $3, $4, $5, $6)`
-
-	var r1, r2 sql.NullString
-
-	if pr.Reviewer1ID != nil && *pr.Reviewer1ID != "" {
-		r1.String = *pr.Reviewer1ID
-		r1.Valid = true
-	}
-	if pr.Reviewer2ID != nil && *pr.Reviewer2ID != "" {
-		r2.String = *pr.Reviewer2ID
-		r2.Valid = true
-	}
-
-	_, err := r.DB.ExecContext(ctx, query, pr.Reviewer1ID, pr.Reviewer2ID, pr.AuthorID, string(pr.Status), r1, r2)
-
-	if err != nil {
-		if pgErr, ok := err.(*pq.Error); ok {
-			return fmt.Errorf("repository: PostgreSQL error (%s) when creating PR %s: %w", pgErr.Code, pr.PullRequestID, err)
-		}
-		return fmt.Errorf("repository: failed to create pull request %s: %w", pr.PullRequestID, err)
-	}
-	return nil
-}
-
-func (r *postgresRepository) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
+func (r *userRepository) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
 	var u domain.User
-	query := `SELECT user_id, username, team_name, is_active, created_at 
-			  FROM users WHERE user_id = $1`
-	err := r.DB.QueryRowContext(ctx, query, userID).Scan(
+	query := `SELECT user_id, username, team_name, is_active, created_at FROM users WHERE user_id = $1`
+	err := r.db.QueryRowContext(ctx, query, userID).Scan(
 		&u.UserID, &u.Username, &u.TeamName, &u.IsActive, &u.CreatedAt,
 	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("repository: failed to get user %s: %w", userID, err)
+		return nil, fmt.Errorf("failed to get user: %w", err)
 	}
 	return &u, nil
 }
 
-func (r *postgresRepository) GetPullRequestByID(ctx context.Context, prID string) (*domain.PullRequest, error) {
-	pr := domain.PullRequest{}
+func (r *userRepository) UpdateUser(ctx context.Context, user domain.User) error {
+	query := `
+		UPDATE users SET username = $1, team_name = $2, is_active = $3
+		WHERE user_id = $4
+	`
+	result, err := r.db.ExecContext(ctx, query, user.Username, user.TeamName, user.IsActive, user.UserID)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
 
-	var r1ID, r2ID sql.NullString
+func (r *userRepository) DeleteUser(ctx context.Context, userID string) error {
+	query := `DELETE FROM users WHERE user_id = $1`
+	result, err := r.db.ExecContext(ctx, query, userID)
+	if err != nil {
+		return fmt.Errorf("failed to delete user: %w", err)
+	}
+	affected, _ := result.RowsAffected()
+	if affected == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
+func (r *userRepository) ListUsers(ctx context.Context, teamName string) ([]domain.User, error) {
+	query := `SELECT user_id, username, team_name, is_active, created_at FROM users`
+	args := []interface{}{}
+	if teamName != "" {
+		query += " WHERE team_name = $1"
+		args = append(args, teamName)
+	}
+
+	rows, err := r.db.QueryContext(ctx, query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list users: %w", err)
+	}
+	defer rows.Close()
+
+	var users []domain.User
+	for rows.Next() {
+		var u domain.User
+		if err := rows.Scan(&u.UserID, &u.Username, &u.TeamName, &u.IsActive, &u.CreatedAt); err != nil {
+			return nil, err
+		}
+		users = append(users, u)
+	}
+	return users, nil
+}
+
+func (r *userRepository) GetPullRequestByID(ctx context.Context, prID string) (*domain.PullRequest, error) {
+	var pr domain.PullRequest
+	var reviewer1ID, reviewer2ID sql.NullString
 	var mergedAt sql.NullTime
-	var createdAt time.Time
-	var status string
 
-	query := `SELECT pull_request_id, pull_request_name, author_id, status, reviewer1_id, reviewer2_id, created_at, merged_at FROM pull_request WHERE pull_request_id = $1`
+	query := `
+		SELECT 
+			pull_request_id, pull_request_name, author_id, status,
+			reviewer1_id, reviewer2_id, created_at, merged_at
+		FROM pull_request 
+		WHERE pull_request_id = $1
+	`
 
-	row := r.DB.QueryRowContext(ctx, query, prID)
-
-	err := row.Scan(&pr.PullRequestID, &pr.PullRequestName, &pr.AuthorID, &status, &r1ID, &r2ID, &createdAt, &mergedAt)
-
+	err := r.db.QueryRowContext(ctx, query, prID).Scan(
+		&pr.PullRequestID,
+		&pr.PullRequestName,
+		&pr.AuthorID,
+		&pr.Status,
+		&reviewer1ID,
+		&reviewer2ID,
+		&pr.CreatedAt,
+		&mergedAt,
+	)
 	if err != nil {
 		if errors.Is(err, sql.ErrNoRows) {
-			return nil, nil
+			return nil, nil // не найден
 		}
-		return nil, fmt.Errorf("repository: failed to get pull request %s: %w", prID, err)
+		return nil, fmt.Errorf("failed to get pull request: %w", err)
 	}
 
-	pr.Status = domain.PRStatus(status)
-	pr.CreatedAt = &createdAt
-
-	if r1ID.Valid {
-		pr.Reviewer1ID = &r1ID.String
-		pr.AssignedReviewers = append(pr.AssignedReviewers, r1ID.String)
+	// Заполняем AssignedReviewers для удобства
+	pr.AssignedReviewers = []string{}
+	if reviewer1ID.Valid {
+		pr.Reviewer1ID = &reviewer1ID.String
+		pr.AssignedReviewers = append(pr.AssignedReviewers, reviewer1ID.String)
 	}
-	if r2ID.Valid {
-		pr.Reviewer2ID = &r2ID.String
-		pr.AssignedReviewers = append(pr.AssignedReviewers, r2ID.String)
+	if reviewer2ID.Valid {
+		pr.Reviewer2ID = &reviewer2ID.String
+		pr.AssignedReviewers = append(pr.AssignedReviewers, reviewer2ID.String)
 	}
-
 	if mergedAt.Valid {
 		pr.MergedAt = &mergedAt.Time
-	} else {
-		pr.MergedAt = nil
 	}
 
 	return &pr, nil
+}
+func (r *userRepository) CreatePullRequest(ctx context.Context, pr domain.PullRequest) error {
+	var reviewer1ID, reviewer2ID sql.NullString
+	if pr.Reviewer1ID != nil && *pr.Reviewer1ID != "" {
+		reviewer1ID.Valid = true
+		reviewer1ID.String = *pr.Reviewer1ID
+	}
+	if pr.Reviewer2ID != nil && *pr.Reviewer2ID != "" {
+		reviewer2ID.Valid = true
+		reviewer2ID.String = *pr.Reviewer2ID
+	}
+
+	query := `
+		INSERT INTO pull_request (
+			pull_request_id, pull_request_name, author_id, status,
+			reviewer1_id, reviewer2_id, created_at
+		) VALUES ($1, $2, $3, $4, $5, $6, NOW())
+	`
+
+	_, err := r.db.ExecContext(ctx, query,
+		pr.PullRequestID, pr.PullRequestName, pr.AuthorID, string(pr.Status),
+		reviewer1ID, reviewer2ID,
+	)
+	if err != nil {
+		return fmt.Errorf("failed to create pull request: %w", err)
+	}
+	return nil
 }

@@ -2,6 +2,8 @@ package domain
 
 import (
 	"time"
+
+	"github.com/google/uuid"
 )
 
 const (
@@ -27,6 +29,10 @@ type User struct {
 	CreatedAt time.Time `json:"createdAt" db:"created_at"`
 }
 
+func (u *User) GenerateID() {
+	u.UserID = uuid.NewString()
+}
+
 type Team struct {
 	TeamName  string       `json:"team_name" db:"team_name"`
 	Members   []TeamMember `json:"members"`
@@ -46,6 +52,10 @@ type PullRequest struct {
 
 	CreatedAt *time.Time `json:"createdAt" db:"created_at"`
 	MergedAt  *time.Time `json:"mergedAt" db:"merged_at"`
+}
+
+func (pr *PullRequest) GenerateID() {
+	pr.PullRequestID = uuid.NewString()
 }
 
 type UserTeam struct {

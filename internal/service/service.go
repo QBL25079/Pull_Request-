@@ -1,4 +1,4 @@
-// internal/service/service.go
+// internal/service/user_service.go
 package service
 
 import (
@@ -7,34 +7,31 @@ import (
 	"pr-reviewer-service/internal/repository"
 )
 
-type userService struct {
-	repo repository.Repository
+type UserService struct {
+	userRepo repository.UserRepository
 }
 
-func New(repo repository.Repository) UserServiceProvider {
-	return &userService{repo: repo}
+func NewUserService(userRepo repository.UserRepository) *UserService {
+	return &UserService{userRepo: userRepo}
 }
 
-func (s *userService) CreateTeam(ctx context.Context, teamName string) error {
-	return s.repo.CreateTeam(ctx, teamName)
+func (s *UserService) CreateUser(ctx context.Context, user domain.User) error {
+	user.GenerateID()
+	return s.userRepo.CreateUser(ctx, user)
 }
 
-func (s *userService) UpdateTeamName(ctx context.Context, oldName, newName string) error {
-	return s.repo.UpdateTeamName(ctx, oldName, newName)
+func (s *UserService) GetUser(ctx context.Context, userID string) (*domain.User, error) {
+	return s.userRepo.GetUserByID(ctx, userID)
 }
 
-func (s *userService) CreateUser(ctx context.Context, user domain.User) error {
-	return s.repo.CreateUser(ctx, user)
+func (s *UserService) UpdateUser(ctx context.Context, user domain.User) error {
+	return s.userRepo.UpdateUser(ctx, user)
 }
 
-func (s *userService) GetUserByID(ctx context.Context, userID string) (*domain.User, error) {
-	return s.repo.GetUserByID(ctx, userID)
+func (s *UserService) DeleteUser(ctx context.Context, userID string) error {
+	return s.userRepo.DeleteUser(ctx, userID)
 }
 
-func (s *userService) CreatePullRequest(ctx context.Context, pr domain.PullRequest) error {
-	return s.repo.CreatePullRequest(ctx, pr)
-}
-
-func (s *userService) GetPullRequestByID(ctx context.Context, prID string) (*domain.PullRequest, error) {
-	return s.repo.GetPullRequestByID(ctx, prID)
+func (s *UserService) ListUsers(ctx context.Context, teamName string) ([]domain.User, error) {
+	return s.userRepo.ListUsers(ctx, teamName)
 }

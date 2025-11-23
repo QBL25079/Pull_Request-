@@ -1,138 +1,98 @@
+// internal/handler/user_handler.go
 package handler
 
 import (
-	"database/sql"
 	"net/http"
 	"pr-reviewer-service/internal/domain"
 	"pr-reviewer-service/internal/service"
-	"strings"
 
 	"github.com/labstack/echo/v4"
 )
 
-type Handler struct {
-	userService service.UserServiceProvider
+type UserHandler struct {
+	userService *service.UserService
 }
 
-func NewHandler(userService service.UserServiceProvider) *Handler {
-	return &Handler{
-		userService: userService,
-	}
+func NewUserHandler(userService *service.UserService) *UserHandler {
+	return &UserHandler{userService: userService}
 }
 
-func (h *Handler) CreateTeam(c echo.Context) error {
+// POST /api/v1/users
+func (h *UserHandler) CreateUser(c echo.Context) error {
 	var req struct {
-		TeamName string `json:"team_name"`
+		Username string `json:"username" validate:"required"`
+		TeamName string `json:"team_name" validate:"required"`
+		IsActive bool   `json:"is_active"`
 	}
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
-	}
-	if req.TeamName == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Team name is required"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
 	}
 
-	err := h.userService.CreateTeam(c.Request().Context(), req.TeamName)
-	if err != nil {
-		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") ||
-			strings.Contains(err.Error(), "uniq_team_name") { // зависит от имени индекса
-			return c.JSON(http.StatusConflict, map[string]string{"error": "Team name already exists"})
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create team"})
+	user := domain.User{
+		Username: req.Username,
+		TeamName: req.TeamName,
+		IsActive: req.IsActive,
+	}
+
+	if err := h.userService.CreateUser(c.Request().Context(), user); err != nil {
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 
 	return c.JSON(http.StatusCreated, map[string]string{
-		"message":   "Team created successfully",
-		"team_name": req.TeamName,
-	})
-}
-
-// Создание пользователя
-func (h *Handler) CreateUser(c echo.Context) error {
-	var user domain.User
-	if err := c.Bind(&user); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
-	}
-
-	err := h.userService.CreateUser(c.Request().Context(), user)
-	if err != nil {
-		if strings.Contains(err.Error(), "violates foreign key constraint") {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "Team does not exist"})
-		}
-		if strings.Contains(err.Error(), "duplicate key value violates unique constraint") {
-			return c.JSON(http.StatusConflict, map[string]string{"error": "User ID already exists"})
-		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create user"})
-	}
-
-	return c.JSON(http.StatusCreated, map[string]string{
-		"message": "User created successfully",
+		"message": "user created",
 		"user_id": user.UserID,
 	})
 }
 
-func (h *Handler) GetUserByID(c echo.Context) error {
-	userID := c.Param("userID")
-	user, err := h.userService.GetUserByID(c.Request().Context(), userID)
+// GET /api/v1/users/:id
+func (h *UserHandler) GetUser(c echo.Context) error {
+	userID := c.Param("id")
+	user, err := h.userService.GetUser(c.Request().Context(), userID)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get user"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
 	if user == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "User not found"})
+		return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 	}
 	return c.JSON(http.StatusOK, user)
 }
 
-func (h *Handler) UpdateTeamName(c echo.Context) error {
-	oldName := c.Param("teamName")
-
-	var req struct {
-		NewName string `json:"newname"`
-	}
+// PUT /api/v1/users/:id
+func (h *UserHandler) UpdateUser(c echo.Context) error {
+	userID := c.Param("id")
+	var req domain.User
 	if err := c.Bind(&req); err != nil {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid payload"})
 	}
-	if req.NewName == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "New name is required"})
-	}
+	req.UserID = userID
 
-	err := h.userService.UpdateTeamName(c.Request().Context(), oldName, req.NewName)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": "Team not found"})
+	if err := h.userService.UpdateUser(c.Request().Context(), req); err != nil {
+		if err.Error() == "no rows affected" {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
 		}
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to update team name"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-
-	return c.JSON(http.StatusOK, map[string]string{"message": "Team name updated successfully"})
+	return c.JSON(http.StatusOK, map[string]string{"message": "user updated"})
 }
 
-func (h *Handler) CreatePullRequest(c echo.Context) error {
-	var pr domain.PullRequest
-	if err := c.Bind(&pr); err != nil { // Исправлено: &pr, а не &req
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "Invalid request payload"})
+// DELETE /api/v1/users/:id
+func (h *UserHandler) DeleteUser(c echo.Context) error {
+	userID := c.Param("id")
+	if err := h.userService.DeleteUser(c.Request().Context(), userID); err != nil {
+		if err.Error() == "no rows affected" {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "user not found"})
+		}
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-
-	err := h.userService.CreatePullRequest(c.Request().Context(), pr)
-	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to create pull request"})
-	}
-
-	return c.JSON(http.StatusCreated, map[string]string{
-		"message":         "Pull Request created successfully",
-		"pull_request_id": pr.PullRequestID,
-	})
+	return c.JSON(http.StatusOK, map[string]string{"message": "user deleted"})
 }
 
-func (h *Handler) GetPullRequestByID(c echo.Context) error {
-	prID := c.Param("prID")
-
-	pr, err := h.userService.GetPullRequestByID(c.Request().Context(), prID)
+// GET /api/v1/users?team=DevOps
+func (h *UserHandler) ListUsers(c echo.Context) error {
+	team := c.QueryParam("team")
+	users, err := h.userService.ListUsers(c.Request().Context(), team)
 	if err != nil {
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "Failed to get pull request"})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 	}
-	if pr == nil {
-		return c.JSON(http.StatusNotFound, map[string]string{"error": "Pull Request not found"})
-	}
-
-	return c.JSON(http.StatusOK, pr)
+	return c.JSON(http.StatusOK, users)
 }
